@@ -1,0 +1,100 @@
+group 'io.nutz'
+version '1.0'
+
+buildscript {
+    ext {
+        kotlinVersion = '1.3.30'
+        nutzbootVersion = '2.3-SNAPSHOT'
+        nutzVersion = '1.r.68.v20190220'
+    }
+    repositories {
+        mavenCentral()
+        maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        classpath("org.jetbrains.kotlin:kotlin-allopen:${kotlinVersion}")
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'kotlin'
+
+repositories {
+    mavenCentral()
+    maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
+    maven { url 'http://oss.sonatype.org/content/repositories/snapshots' }
+    maven { url "http://dl.bintray.com/rouchuan/maven" }
+    maven { url 'http://repo.maven.apache.org/maven2' }
+    maven { url "https://jfrog.nutz.cn/artifactory/libs-release" }
+    maven { url "https://jfrog.nutz.cn/artifactory/snapshots" }
+}
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile "org.jetbrains.kotlin:kotlin-reflect"
+
+    compile "org.nutz:nutz:${nutzVersion}"
+    compile "org.nutz:nutzboot-core:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-swagger:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-nutz-mvc:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-nutz-dao:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-jdbc:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-jetty:${nutzbootVersion}"
+    compile "org.nutz:nutzboot-starter-beetl:${nutzbootVersion}"
+
+    compile 'com.h2database:h2:1.4.197'
+    compile 'org.slf4j:slf4j-log4j12:1.7.25'
+}
+
+sourceCompatibility = 1.8
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+
+jar {
+    // 设置manifest相关属性
+    manifest {
+        attributes 'Manifest-Version': version
+        attributes 'Main-Class': 'io.nutz.demo.MainLauncher'
+    }
+
+    println "dependencies libs ..."
+    configurations.compile.each { println it.path }
+
+    def nbStarters = new HashSet<String>()
+    from {
+        configurations.compile.collect {
+            if (it.isDirectory()) {
+                it
+            } else {
+                zipTree(it).forEach { file ->
+                    if (file.name != null && file.name == "org.nutz.boot.starter.NbStarter") {
+                        nbStarters.addAll(file.readLines())
+                    }
+                }
+
+                zipTree(it).matching { filterable ->
+                    filterable.exclude('**/org.nutz.boot.starter.NbStarter')
+                }
+            }
+        }
+    }.doLast {
+        println("nbStarters: "+nbStarters)
+        def outFile = new File("build/libs/temp/nutz/org.nutz.boot.starter.NbStarter")
+        outFile.parentFile.mkdirs()
+        outFile.delete()
+        outFile.createNewFile()
+        outFile.write(nbStarters.join("\n"))
+    }
+
+    into ('META-INF') {
+        from 'build/libs/temp'
+    }
+}
+task release(type: Copy, dependsOn: [build]) {
+}
+
